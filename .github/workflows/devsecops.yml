@@ -7,28 +7,31 @@ on:
 
 jobs:
   security-scan:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, rhel9]
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        run: |
+          gitleaks detect --source . --verbose
 
-      - name: Run Trivy FS Scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scan-ref: .
+      - name: Run Trivy Filesystem Scan
+        run: |
+          trivy fs .
+
+      - name: SonarQube Scan
+        run: |
+          /opt/sonar/sonar-scanner-7.1.0.4889-linux-x64/bin/sonar-scanner \
+          -Dsonar.host.url=http://localhost:9000 \
+          -Dsonar.token=${{ secrets.SONAR_TOKEN }}
 
   docker-build:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, rhel9]
     needs: security-scan
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Login Docker Hub
         uses: docker/login-action@v3
@@ -37,7 +40,9 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build Vote Image
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/voteapp:latest ./vote
+        run: |
+          docker build -t jckabayiza/voteapp:latest ./vote
 
       - name: Push Vote Image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/voteapp:latest
+        run: |
+          docker push jckabayiza/voteapp:latest
