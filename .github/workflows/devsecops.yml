@@ -1,48 +1,43 @@
 name: BK DevSecOps Pipeline
 
 on:
-push:
-branches:
-- main
+  push:
+    branches:
+      - main
 
 jobs:
-security-scan:
-runs-on: ubuntu-latest
+  security-scan:
+    runs-on: ubuntu-latest
 
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-steps:
-  - name: Checkout Code
-    uses: actions/checkout@v4
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
 
-  - name: Run Gitleaks
-    uses: gitleaks/gitleaks-action@v2
+      - name: Run Trivy FS Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
 
-  - name: Run Trivy FS Scan
-    uses: aquasecurity/trivy-action@master
-    with:
-      scan-type: 'fs'
-      scan-ref: '.'
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: security-scan
 
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-docker-build:
-runs-on: ubuntu-latest
-needs: security-scan
+      - name: Login Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-steps:
-  - name: Checkout Code
-    uses: actions/checkout@v4
+      - name: Build Vote Image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/voteapp:latest ./vote
 
-  - name: Login Docker Hub
-    uses: docker/login-action@v3
-    with:
-      username: ${{ secrets.DOCKER_USERNAME }}
-      password: ${{ secrets.DOCKER_PASSWORD }}
-
-  - name: Build Vote Image
-    run: |
-      docker build -t ${{ secrets.DOCKER_USERNAME }}/voteapp:latest ./vote
-
-  - name: Push Vote Image
-    run: |
-      docker push ${{ secrets.DOCKER_USERNAME }}/voteapp:latest
-
+      - name: Push Vote Image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/voteapp:latest
